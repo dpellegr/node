@@ -15,6 +15,8 @@ DAEMON_USER=mysterium-node
 DAEMON_GROUP=mysterium-node
 DAEMON_DEFAULT=/etc/default/mysterium-node
 
+NODE_TOS_VERSION="0.0.27"
+
 function install_initd {
     printf "Installing initd script '$OS_DIR_INITD/mysterium-node'..\n" \
         && cp -f $OS_DIR_INSTALLATION/initd.sh $OS_DIR_INITD/mysterium-node \
@@ -58,6 +60,25 @@ function ensure_paths {
     fi
 }
 
+function insert_tos_agreement {
+        touch $OS_DIR_CONFIG/config.toml
+
+        # Delete the terms part from config if it exists
+        if grep -Fxq "[terms]" $OS_DIR_CONFIG/config.toml
+        then
+        sed -i -r '/\[terms\]/,/\[/{//!d}' $OS_DIR_CONFIG/config.toml
+        sed -i -r '/\[terms\]/d'  $OS_DIR_CONFIG/config.toml
+        fi
+
+        cat <<EOT >> $OS_DIR_CONFIG/config.toml
+[terms]
+  consumer-agreed = true
+  provider-agreed = true
+  version = "$NODE_TOS_VERSION"
+EOT
+}
+
+
 printf "Creating user '$DAEMON_USER:$DAEMON_GROUP'...\n" \
     && useradd --system -U $DAEMON_USER -G root -s /bin/false -m -d $OS_DIR_DATA \
     && usermod -a -G root $DAEMON_USER \
@@ -71,6 +92,7 @@ printf "Setting required capabilities...\n" \
     && setcap cap_net_admin+ep /usr/bin/myst
 
 ensure_paths
+insert_tos_agreement
 
 # Add defaults file, if it doesn't exist
 if [[ ! -f $DAEMON_DEFAULT ]]; then
