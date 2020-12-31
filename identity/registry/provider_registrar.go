@@ -188,7 +188,22 @@ func (pr *ProviderRegistrar) handleEvent(qe queuedEvent) error {
 func (pr *ProviderRegistrar) registerIdentity(qe queuedEvent) error {
 	id := identity.FromAddress(qe.event.ProviderID)
 
-	if !pr.cfg.IsTestnet2 {
+	var idBeneficiary *string
+	if pr.cfg.IsTestnet2 {
+		// This part migrates bounty payout address to BC beneficiary
+		payout, err := pr.mysteriumAPI.GetPayoutInfo(id, pr.signerFactory(id))
+		if err != nil {
+			if errHTTP, ok := err.(*requests.ErrorHTTP); ok && errHTTP.Code == 404 {
+				log.Info().Msgf("provider %q not have payout address for auto registration, will require manual registration", id.Address)
+				return nil
+			}
+
+			log.Error().Err(err).Msgf("beneficiary for registration check failed for %q", id.Address)
+			return err
+		}
+
+		idBeneficiary = &payout.EthAddress
+	} else {
 		eligible, err := pr.txer.CheckIfRegistrationBountyEligible(id)
 		if err != nil {
 			log.Error().Err(err).Msgf("eligibility for registration check failed for %q", id.Address)
@@ -199,21 +214,12 @@ func (pr *ProviderRegistrar) registerIdentity(qe queuedEvent) error {
 			log.Info().Msgf("provider %q not eligible for auto registration, will require manual registration", id.Address)
 			return nil
 		}
+
+		noBeneficiary := ""
+		idBeneficiary = &noBeneficiary
 	}
 
-	// This part migrates bounty payout address to BC beneficiary
-	payout, err := pr.mysteriumAPI.GetPayoutInfo(id, pr.signerFactory(id))
-	if err != nil {
-		if errHTTP, ok := err.(*requests.ErrorHTTP); ok && errHTTP.Code == 404 {
-			log.Info().Msgf("provider %q not have payout address for auto registration, will require manual registration", id.Address)
-			return nil
-		}
-
-		log.Error().Err(err).Msgf("beneficiary for registration check failed for %q", id.Address)
-		return err
-	}
-
-	err = pr.txer.RegisterIdentity(qe.event.ProviderID, pr.cfg.Stake, nil, payout.EthAddress, pr.chainID(), nil)
+	err := pr.txer.RegisterIdentity(qe.event.ProviderID, pr.cfg.Stake, nil, *idBeneficiary, pr.chainID(), nil)
 	if err != nil {
 		log.Error().Err(err).Msgf("Registration failed for provider %q", qe.event.ProviderID)
 		return errors.Wrap(err, "could not register identity on BC")

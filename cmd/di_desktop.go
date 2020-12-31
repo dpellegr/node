@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/mysteriumnetwork/node/market/mysterium"
+	"github.com/mysteriumnetwork/node/metadata"
 
 	"github.com/mysteriumnetwork/node/config"
 	"github.com/mysteriumnetwork/node/core/connection"
@@ -174,7 +176,8 @@ func (di *Dependencies) bootstrapProviderRegistrar(nodeOptions node.Options) err
 		HermesAddress:       common.HexToAddress(nodeOptions.Hermes.HermesID),
 		RegistryAddress:     common.HexToAddress(nodeOptions.Transactor.RegistryAddress),
 	}
-	di.ProviderRegistrar = registry.NewProviderRegistrar(di.Transactor, di.IdentityRegistry, di.MysteriumAPI, di.SignerFactory, cfg)
+	mysteriumAPITestnet := mysterium.NewClient(di.HTTPClient, metadata.TestnetDefinition.MysteriumAPIAddress)
+	di.ProviderRegistrar = registry.NewProviderRegistrar(di.Transactor, di.IdentityRegistry, mysteriumAPITestnet, di.SignerFactory, cfg)
 	return di.ProviderRegistrar.Subscribe(di.EventBus)
 }
 
