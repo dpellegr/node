@@ -123,7 +123,7 @@ func TestConsumerConnectsToProvider(t *testing.T) {
 
 	tequilapiProvider := newTequilapiProvider()
 	t.Run("Provider has a registered identity", func(t *testing.T) {
-		providerIsRegistered(t, tequilapiProvider, providerID)
+		providerRegistrationFlow(t, tequilapiProvider, providerID, providerPassphrase)
 	})
 
 	t.Run("Consumer Creates And Registers Identity", func(t *testing.T) {
@@ -449,9 +449,7 @@ func providerRegistrationFlow(t *testing.T, tequilapi *tequilapi_client.Client, 
 	mintMyst(t, topUpAmount, common.HexToAddress(chid))
 
 	err = tequilapi.RegisterIdentity(id, id, providerStake, fees.Registration, nil)
-	if !assert.Contains(t, err.Error(), "server response invalid: 409 Conflict") {
-		assert.NoError(t, err)
-	}
+	assert.True(t, err == nil || assert.Contains(t, err.Error(), "server response invalid: 409 Conflict"))
 
 	providerIsRegistered(t, tequilapi, id)
 }
