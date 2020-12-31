@@ -36,12 +36,10 @@ import (
 
 	"github.com/mysteriumnetwork/node/identity"
 	"github.com/mysteriumnetwork/node/requests"
-	"github.com/mysteriumnetwork/node/tequilapi/contract"
-	"github.com/mysteriumnetwork/payments/bindings"
-	"github.com/mysteriumnetwork/payments/crypto"
-
 	"github.com/mysteriumnetwork/node/session/pingpong"
 	tequilapi_client "github.com/mysteriumnetwork/node/tequilapi/client"
+	"github.com/mysteriumnetwork/node/tequilapi/contract"
+	"github.com/mysteriumnetwork/payments/bindings"
 )
 
 var (
@@ -223,12 +221,17 @@ func TestConsumerConnectsToProvider(t *testing.T) {
 		assert.NoError(t, err)
 
 		feeSum := big.NewInt(0).Add(big.NewInt(0).Add(fees.Settlement, hermesFee), fees.Settlement)
+		fmt.Println("==feeSum", feeSum, fees.Settlement, hermesFee)
 		expected := new(big.Int).Sub(totalEarnings, feeSum)
+		fmt.Println("==expected", expected)
 		balance, err := caller.BalanceOf(&bind.CallOpts{}, common.HexToAddress(providerStatus.ChannelAddress))
 		assert.NoError(t, err)
+		fmt.Println("==balance", balance)
 
 		diff := new(big.Int).Sub(balance, expected)
+		fmt.Println("==diff", diff.)
 		diff = diff.Abs(diff)
+		fmt.Println("==diff abs", diff)
 
 		assert.True(t, diff.Uint64() >= 0 && diff.Uint64() <= 1)
 	})
@@ -417,7 +420,23 @@ func mintMyst(t *testing.T, amount *big.Int, chid common.Address) {
 	assert.NoError(t, err)
 }
 
-func providerIsRegistered(t *testing.T, tequilapi *tequilapi_client.Client, id string) {
+func providerRegistrationFlow(t *testing.T, tequilapi *tequilapi_client.Client, id, idPassphrase string) {
+	err := tequilapi.Unlock(id, idPassphrase)
+	assert.NoError(t, err)
+
+	// fees, err := tequilapi.GetTransactorFees()
+	// assert.NoError(t, err)
+	//
+	// topUpAmount := big.NewInt(0).Add(fees.Registration, providerStake)
+	//
+	// chid, err := crypto.GenerateChannelAddress(providerID, hermesID, registryAddress, channelImplementation)
+	// assert.NoError(t, err)
+	//
+	// mintMyst(t, topUpAmount, common.HexToAddress(chid))
+
+	err = tequilapi.RegisterIdentity(id, id, providerStake, nil, nil)
+	assert.True(t, err == nil || assert.Contains(t, err.Error(), "server response invalid: 409 Conflict"))
+
 	assert.Eventually(t, func() bool {
 		idStatus, _ := tequilapi.Identity(id)
 		return "Registered" == idStatus.RegistrationStatus
@@ -432,26 +451,6 @@ func providerIsRegistered(t *testing.T, tequilapi *tequilapi_client.Client, id s
 	assert.Equal(t, providerStake, idStatus.Stake)
 	assert.Zero(t, idStatus.Earnings.Uint64())
 	assert.Zero(t, idStatus.EarningsTotal.Uint64())
-}
-
-func providerRegistrationFlow(t *testing.T, tequilapi *tequilapi_client.Client, id, idPassphrase string) {
-	err := tequilapi.Unlock(id, idPassphrase)
-	assert.NoError(t, err)
-
-	fees, err := tequilapi.GetTransactorFees()
-	assert.NoError(t, err)
-
-	topUpAmount := big.NewInt(0).Add(fees.Registration, providerStake)
-
-	chid, err := crypto.GenerateChannelAddress(providerID, hermesID, registryAddress, channelImplementation)
-	assert.NoError(t, err)
-
-	mintMyst(t, topUpAmount, common.HexToAddress(chid))
-
-	err = tequilapi.RegisterIdentity(id, id, providerStake, fees.Registration, nil)
-	assert.True(t, err == nil || assert.Contains(t, err.Error(), "server response invalid: 409 Conflict"))
-
-	providerIsRegistered(t, tequilapi, id)
 }
 
 func topUpConsumer(t *testing.T, id string, hermesID common.Address, registrationFee *big.Int) {
